@@ -1,3 +1,20 @@
 venv
 .venv
 *venv
+
+# Credenciais
+.env
+*.key
+*.pem
+config_ssh.py
+
+# Arquivos temporários
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+leaderboard.json
+
+# Logs
+*.log
