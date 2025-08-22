@@ -111,8 +111,17 @@ st.markdown("""
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 15px;
         padding: 30px;
-        color: white;
         margin-top: 30px;
+    }
+    .playground-title {
+        color: white !important;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .playground-text {
+        color: white !important;
+        text-align: center;
+        margin-bottom: 20px;
     }
     .generated-image {
         border-radius: 10px;
@@ -142,17 +151,6 @@ st.markdown("""
         margin: 10px 0;
         font-family: monospace;
         font-size: 0.9em;
-    }
-    .debug-output {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-        padding: 10px;
-        margin: 10px 0;
-        font-family: monospace;
-        font-size: 0.8em;
-        max-height: 200px;
-        overflow-y: auto;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -264,13 +262,12 @@ def test_ssh_connection():
     except Exception as e:
         return False, f"Erro de conexão: {str(e)}"
 
-# Função para gerar imagem via SSH (SIMPLIFICADA E CORRIGIDA)
+# Função para gerar imagem via SSH (SIMPLIFICADA)
 def generate_image_via_ssh(prompt):
     """Conecta via SSH e gera imagem de forma mais robusta"""
     ssh_config = get_ssh_config()
     if not ssh_config:
-        st.error("Configuração SSH não encontrada.")
-        return None, "Configuração SSH não encontrada"
+        return None, "Configuração SSH não encontrada. Verifique o arquivo .env"
     
     try:
         ssh = paramiko.SSHClient()
@@ -297,9 +294,7 @@ def generate_image_via_ssh(prompt):
                 timeout=30
             )
         else:
-            error_msg = "Nenhum método de autenticação SSH configurado."
-            st.error(error_msg)
-            return None, error_msg
+            return None, "Nenhum método de autenticação SSH configurado"
         
         # Criar script Python temporário
         safe_prompt = prompt.replace('"', '\\"').replace("'", "\\'")
@@ -310,7 +305,6 @@ import base64
 from io import BytesIO
 
 try:
-    print("Iniciando carregamento do modelo...")
     pipe = StableDiffusionXLPipeline.from_pretrained(
         "{ssh_config['model_path']}", 
         torch_dtype=torch.float16, 
@@ -318,11 +312,8 @@ try:
         variant="fp16"
     )
     pipe = pipe.to("cuda")
-    print("Modelo carregado com sucesso!")
     
-    print("Gerando imagem...")
     image = pipe(prompt="{safe_prompt}", num_inference_steps=20).images[0]
-    print("Imagem gerada com sucesso!")
     
     buffered = BytesIO()
     image.save(buffered, format="PNG")
@@ -330,14 +321,10 @@ try:
     print("SUCCESS:" + img_str)
     
 except Exception as e:
-    error_msg = f"ERROR:{{str(e)}}"
-    print(error_msg)
-    import traceback
-    traceback_str = traceback.format_exc()
-    print("TRACEBACK:" + traceback_str)
+    print("ERROR: Falha na geração da imagem")
 '''
         
-        # Salvar script localmente primeiro para debug
+        # Salvar script localmente
         script_filename = "/tmp/generate_image.py"
         with open(script_filename, "w") as f:
             f.write(python_script)
@@ -367,32 +354,20 @@ except Exception as e:
         
         ssh.close()
         
-        # Processar output
-        debug_info = f"Comando executado: {command}\n\n"
-        debug_info += f"Saída:\n{output}\n\n"
-        debug_info += f"Erros:\n{error}\n\n"
-        
         if "SUCCESS:" in output:
             success_line = [line for line in output.split('\n') if line.startswith('SUCCESS:')][0]
-            image_data_b64 = success_line[8:]  # Remove "SUCCESS:"
+            image_data_b64 = success_line[8:]
             try:
                 image_data = base64.b64decode(image_data_b64)
                 image = Image.open(io.BytesIO(image_data))
-                return image, debug_info
-            except Exception as e:
-                error_msg = f"Erro ao decodificar imagem: {str(e)}"
-                return None, debug_info + error_msg
+                return image, None
+            except Exception:
+                return None, "Erro ao processar imagem gerada"
         else:
-            error_lines = [line for line in output.split('\n') if line.startswith('ERROR:')]
-            if error_lines:
-                error_msg = error_lines[0][6:]  # Remove "ERROR:"
-            else:
-                error_msg = "Erro desconhecido no servidor"
-            return None, debug_info + error_msg
+            return None, "Falha na geração da imagem. Verifique se o servidor está configurado corretamente."
             
     except Exception as e:
-        error_msg = f"Erro de conexão SSH: {str(e)}"
-        return None, error_msg
+        return None, f"Erro de conexão: {str(e)}"
 
 # Funções para gerenciar dados
 def load_leaderboard():
@@ -407,19 +382,34 @@ def save_leaderboard(leaderboard):
 
 def add_to_leaderboard(name, score):
     leaderboard = load_leaderboard()
-    leaderboard.append({
-        "name": name,
-        "score": score,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M")
-    })
+    
+    # Verificar se o jogador já existe no leaderboard
+    player_exists = any(entry["name"] == name for entry in leaderboard)
+    
+    if not player_exists:
+        # Adicionar novo jogador
+        leaderboard.append({
+            "name": name,
+            "score": score,
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+        })
+    else:
+        # Atualizar score se for maior
+        for entry in leaderboard:
+            if entry["name"] == name and score > entry["score"]:
+                entry["score"] = score
+                entry["date"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    # Ordenar e manter apenas os top 10
     leaderboard.sort(key=lambda x: x["score"], reverse=True)
     leaderboard = leaderboard[:10]
+    
     save_leaderboard(leaderboard)
     return leaderboard
 
 def reset_game():
     for key in list(st.session_state.keys()):
-        if key not in ['game_state', 'player_name', 'ssh_configured']:
+        if key not in ['game_state', 'player_name', 'ssh_configured', 'score_added_to_leaderboard']:
             del st.session_state[key]
     st.session_state.game_state = "start"
 
@@ -446,8 +436,8 @@ if 'last_prompt' not in st.session_state:
     st.session_state.last_prompt = ""
 if 'ssh_tested' not in st.session_state:
     st.session_state.ssh_tested = False
-if 'debug_info' not in st.session_state:
-    st.session_state.debug_info = ""
+if 'score_added_to_leaderboard' not in st.session_state:
+    st.session_state.score_added_to_leaderboard = False
 
 # Tela inicial
 if st.session_state.game_state == "start":
@@ -461,7 +451,6 @@ if st.session_state.game_state == "start":
         st.markdown('<div class="ssh-success">'
                    '<h4>✅ SSH Configurado</h4>'
                    f'<p>Servidor: {ssh_config["hostname"]} | Usuário: {ssh_config["username"]}</p>'
-                   f'<p>Pasta remota: {ssh_config["remote_path"] or "Não configurado"} | Venv: {ssh_config["venv_name"] or "Não configurado"}</p>'
                    '</div>', unsafe_allow_html=True)
         
         if st.button("🔍 Testar Conexão SSH"):
@@ -476,20 +465,6 @@ if st.session_state.game_state == "start":
                    '<h4>⚠️ Configuração SSH Necessária</h4>'
                    '<p>Para usar o playground de geração de imagens, configure o arquivo .env</p>'
                    '</div>', unsafe_allow_html=True)
-        
-        with st.expander("📋 Como Configurar"):
-            st.markdown("""
-            **Crie um arquivo `.env` na pasta do projeto:**
-
-            ```bash
-            SSH_HOST=seu.servidor.com
-            SSH_USER=seu_usuario
-            SSH_PRIVATE_KEY_PATH=~/.ssh/id_rsa
-            SSH_REMOTE_PATH=~/caminho/para/sua/pasta
-            SSH_VENV_NAME=venv
-            SSH_PORT=22
-            ```
-            """)
     
     with st.form("player_form"):
         player_name = st.text_input("Digite seu nome:", max_chars=20, value=st.session_state.player_name)
@@ -503,6 +478,7 @@ if st.session_state.game_state == "start":
                 st.session_state.score = 0
                 st.session_state.selected_option = None
                 st.session_state.answer_revealed = False
+                st.session_state.score_added_to_leaderboard = False
                 st.rerun()
             else:
                 st.warning("Por favor, digite seu nome para começar.")
@@ -563,8 +539,12 @@ elif st.session_state.game_state == "end":
     # Mostrar pontuação
     st.markdown(f'<div class="score-card"><h2>Pontuação Final: {st.session_state.score}/{len(image_data)}</h2></div>', unsafe_allow_html=True)
     
-    # Adicionar ao leaderboard
-    leaderboard = add_to_leaderboard(st.session_state.player_name, st.session_state.score)
+    # Adicionar ao leaderboard apenas uma vez
+    if not st.session_state.score_added_to_leaderboard:
+        leaderboard = add_to_leaderboard(st.session_state.player_name, st.session_state.score)
+        st.session_state.score_added_to_leaderboard = True
+    else:
+        leaderboard = load_leaderboard()
     
     # Mostrar leaderboard
     st.markdown('<div class="leaderboard"><h2>🏆 Leaderboard</h2>', unsafe_allow_html=True)
@@ -595,7 +575,7 @@ elif st.session_state.game_state == "end":
     ssh_config = get_ssh_config()
     
     st.markdown('<div class="playground">', unsafe_allow_html=True)
-    st.markdown('<h2 style="color: white;">🎨 Playground de Geração de Imagens</h2>', unsafe_allow_html=True)
+    st.markdown('<h2 class="playground-title">🎨 Playground de Geração de Imagens</h2>', unsafe_allow_html=True)
     
     if not ssh_config:
         st.markdown("""
@@ -605,16 +585,7 @@ elif st.session_state.game_state == "end":
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Testar conexão se ainda não testou
-        if not st.session_state.ssh_tested:
-            success, message = test_ssh_connection()
-            if success:
-                st.success(f"✅ {message}")
-            else:
-                st.error(f"❌ {message}")
-            st.session_state.ssh_tested = True
-        
-        st.markdown('<p style="color: white;">Agora é sua vez! Gere uma imagem usando IA com a poderosa RTX 4090</p>', unsafe_allow_html=True)
+        st.markdown('<p class="playground-text">Agora é sua vez! Gere uma imagem usando IA com a poderosa RTX 4090</p>', unsafe_allow_html=True)
         
         with st.form("generation_form"):
             prompt = st.text_input("Digite o prompt para gerar uma imagem:", 
@@ -627,22 +598,16 @@ elif st.session_state.game_state == "end":
                     st.session_state.generating = True
                     st.session_state.last_prompt = prompt
                     with st.spinner("⏳ Conectando ao servidor remoto e gerando imagem... (isso pode levar 2-5 minutos)"):
-                        generated_image, debug_info = generate_image_via_ssh(prompt)
-                        st.session_state.debug_info = debug_info
+                        generated_image, error_message = generate_image_via_ssh(prompt)
                         if generated_image:
                             st.session_state.generated_image = generated_image
                             st.success("✅ Imagem gerada com sucesso!")
                         else:
-                            st.error("❌ Falha ao gerar imagem. Verifique o debug abaixo.")
+                            st.error(f"❌ {error_message}")
                     st.session_state.generating = False
                     st.rerun()
                 else:
                     st.warning("Por favor, digite um prompt para gerar a imagem.")
-        
-        # Mostrar informações de debug
-        if st.session_state.debug_info:
-            with st.expander("📊 Debug - Informações da Execução"):
-                st.text_area("Saída do servidor:", st.session_state.debug_info, height=300)
     
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -669,7 +634,6 @@ elif st.session_state.game_state == "end":
         with col2:
             if st.button("🔄 Gerar Outra", use_container_width=True):
                 st.session_state.generated_image = None
-                st.session_state.debug_info = ""
                 st.rerun()
     
     # Botões de ação
