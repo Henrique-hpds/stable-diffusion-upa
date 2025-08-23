@@ -20,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilos CSS personalizados
+    # Estilos CSS personalizados
 st.markdown("""
     <style>
     .main {
@@ -38,6 +38,23 @@ st.markdown("""
     }
     .stButton>button:hover {
         background-color: #45a049;
+    }
+
+    /* Gradiente para o container do playground */
+    .element-container:has(.playground-title) {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        border-radius: 15px;
+        padding: 30px 20px 30px 20px;
+        margin-top: 30px;
+        color: white !important;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+    }
+    .element-container:has(.playground-title) * {
+        color: white !important;
+    }
+    .element-container:has(.playground-title) .stTextInput input {
+        color: #333 !important;
+    }
         transform: scale(1.05);
     }
     .title {
@@ -112,16 +129,38 @@ st.markdown("""
         border-radius: 15px;
         padding: 30px;
         margin-top: 30px;
+        color: white !important;
+    }
+    .playground * {
+        color: white !important;
+    }
+    .playground .stTextInput input {
+        color: #333 !important;
     }
     .playground-title {
-        color: white !important;
         text-align: center;
         margin-bottom: 20px;
+        color: white;
     }
     .playground-text {
-        color: white !important;
         text-align: center;
         margin-bottom: 20px;
+        color: white;
+    }
+    .playground-content {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 20px;
+        margin: 15px 0;
+    }
+    .playground-content .stTextInput input {
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+    .playground-content .stButton button {
+        background-color: #ff6b6b;
+    }
+    .playground-content .stButton button:hover {
+        background-color: #ee5a5a;
     }
     .generated-image {
         border-radius: 10px;
@@ -136,43 +175,43 @@ st.markdown("""
         margin: 10px 0;
         color: #856404;
     }
-    .ssh-success {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-        color: #155724;
+    .image-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+        margin: 20px 0;
     }
-    .config-help {
-        background-color: #e9ecef;
-        border-radius: 8px;
-        padding: 15px;
-        margin: 10px 0;
-        font-family: monospace;
-        font-size: 0.9em;
+    .image-grid-item {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
+        cursor: pointer;
+    }
+    .image-grid-item:hover {
+        transform: scale(1.03);
+    }
+    .image-grid-item.selected {
+        border: 4px solid #4CAF50;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Dados do jogo
-image_data = [
-    {
-        "real": "https://images.unsplash.com/photo-1501854140801-50d01698950b?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=900&q=80",
-        "ai": "https://images.unsplash.com/photo-1502082553048-f009c37129b9?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=900&q=80",
-        "answer": "right"
-    },
-    {
-        "real": "https://images.unsplash.com/photo-1504870712357-65ea720d6078?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=900&q=80",
-        "ai": "https://images.unsplash.com/photo-1506260408121-e353d10b87c7?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=900&q=80",
-        "answer": "left"
-    },
-    {
-        "real": "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=900&q=80",
-        "ai": "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=900&q=80",
-        "answer": "right"
-    }
-]
+# Função para gerar dados do jogo (apenas uma vez)
+def generate_image_data():
+    """Gera os dados das imagens para todas as rodadas"""
+    image_data = []
+    for i in range(15):
+        real_index = random.randint(0, 3)  # Escolhe qual imagem é a real (0-3)
+        image_data.append({
+            "images": [
+                "https://placehold.co/400x300/4CAF50/white?text=Real+" + str(i+1) if j == real_index else 
+                "https://placehold.co/400x300/FF6B6B/white?text=IA+" + str(i+1) + "-" + str(j+1)
+                for j in range(4)
+            ],
+            "answer": real_index  # Índice da imagem real (0-3)
+        })
+    return image_data
 
 # Configurações SSH
 def get_ssh_config():
@@ -412,6 +451,14 @@ def reset_game():
         if key not in ['game_state', 'player_name', 'ssh_configured', 'score_added_to_leaderboard']:
             del st.session_state[key]
     st.session_state.game_state = "start"
+    # Limpar a imagem gerada quando um novo jogo começa
+    if 'generated_image' in st.session_state:
+        del st.session_state.generated_image
+    if 'last_prompt' in st.session_state:
+        del st.session_state.last_prompt
+    # Limpar os dados das imagens para gerar novos
+    if 'image_data' in st.session_state:
+        del st.session_state.image_data
 
 # Inicialização do estado da sessão
 if 'game_state' not in st.session_state:
@@ -438,33 +485,14 @@ if 'ssh_tested' not in st.session_state:
     st.session_state.ssh_tested = False
 if 'score_added_to_leaderboard' not in st.session_state:
     st.session_state.score_added_to_leaderboard = False
+# Gerar dados das imagens apenas uma vez por sessão
+if 'image_data' not in st.session_state:
+    st.session_state.image_data = generate_image_data()
 
 # Tela inicial
 if st.session_state.game_state == "start":
     st.markdown('<h1 class="title">Real vs IA</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Você consegue distinguir imagens reais das geradas por inteligência artificial?</p>', unsafe_allow_html=True)
-    
-    # Verificação de configuração SSH
-    ssh_config = get_ssh_config()
-    
-    if ssh_config:
-        st.markdown('<div class="ssh-success">'
-                   '<h4>✅ SSH Configurado</h4>'
-                   f'<p>Servidor: {ssh_config["hostname"]} | Usuário: {ssh_config["username"]}</p>'
-                   '</div>', unsafe_allow_html=True)
-        
-        if st.button("🔍 Testar Conexão SSH"):
-            success, message = test_ssh_connection()
-            if success:
-                st.success(f"✅ {message}")
-            else:
-                st.error(f"❌ {message}")
-            st.session_state.ssh_tested = True
-    else:
-        st.markdown('<div class="ssh-warning">'
-                   '<h4>⚠️ Configuração SSH Necessária</h4>'
-                   '<p>Para usar o playground de geração de imagens, configure o arquivo .env</p>'
-                   '</div>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitle">Você conseguirá distinguir imagens reais das geradas por inteligência artificial?</p>', unsafe_allow_html=True)
     
     with st.form("player_form"):
         player_name = st.text_input("Digite seu nome:", max_chars=20, value=st.session_state.player_name)
@@ -479,35 +507,37 @@ if st.session_state.game_state == "start":
                 st.session_state.selected_option = None
                 st.session_state.answer_revealed = False
                 st.session_state.score_added_to_leaderboard = False
+                # Limpar a imagem gerada pelo jogador anterior
+                if 'generated_image' in st.session_state:
+                    del st.session_state.generated_image
+                if 'last_prompt' in st.session_state:
+                    del st.session_state.last_prompt
+                # Gerar novos dados de imagem para o novo jogo
+                st.session_state.image_data = generate_image_data()
                 st.rerun()
             else:
                 st.warning("Por favor, digite seu nome para começar.")
 
 # Tela de jogo
 elif st.session_state.game_state == "playing":
-    if st.session_state.current_round < len(image_data):
-        st.markdown(f'<h2 class="subtitle">Rodada {st.session_state.current_round + 1} de {len(image_data)}</h2>', unsafe_allow_html=True)
+    if st.session_state.current_round < len(st.session_state.image_data):
+        st.markdown(f'<h2 class="subtitle">Rodada {st.session_state.current_round + 1} de {len(st.session_state.image_data)}</h2>', unsafe_allow_html=True)
         
-        round_data = image_data[st.session_state.current_round]
+        round_data = st.session_state.image_data[st.session_state.current_round]
         st.info("Clique na imagem que você acredita ser REAL (não gerada por IA).")
         
-        col1, col2 = st.columns(2)
+        # Grid de 4 imagens (2x2)
+        cols = st.columns(2)
+        image_labels = ["A", "B", "C", "D"]
         
-        with col1:
-            st.image(round_data["real"], use_container_width=True, caption="Imagem A")
-            if st.session_state.selected_option is None:
-                if st.button("Selecionar A", key="btn_left"):
-                    st.session_state.selected_option = "left"
-                    st.session_state.answer_revealed = True
-                    st.rerun()
-        
-        with col2:
-            st.image(round_data["ai"], use_container_width=True, caption="Imagem B")
-            if st.session_state.selected_option is None:
-                if st.button("Selecionar B", key="btn_right"):
-                    st.session_state.selected_option = "right"
-                    st.session_state.answer_revealed = True
-                    st.rerun()
+        for i in range(4):
+            with cols[i % 2]:
+                st.image(round_data["images"][i], use_container_width=True, caption=f"Imagem {image_labels[i]}")
+                if st.session_state.selected_option is None:
+                    if st.button(f"Selecionar {image_labels[i]}", key=f"btn_{i}"):
+                        st.session_state.selected_option = i
+                        st.session_state.answer_revealed = True
+                        st.rerun()
         
         if st.session_state.selected_option is not None:
             if st.session_state.selected_option == round_data["answer"]:
@@ -515,10 +545,7 @@ elif st.session_state.game_state == "playing":
             else:
                 st.error("❌ Incorreto. Tente novamente na próxima rodada.")
             
-            if round_data["answer"] == "left":
-                st.info("💡 A imagem REAL era a A (esquerda)")
-            else:
-                st.info("💡 A imagem REAL era a B (direita)")
+            st.info(f"💡 A imagem REAL era a {image_labels[round_data['answer']]}")
             
             if st.button("Próxima Rodada →"):
                 if st.session_state.selected_option == round_data["answer"]:
@@ -537,7 +564,7 @@ elif st.session_state.game_state == "end":
     st.markdown('<h1 class="title">Fim de Jogo!</h1>', unsafe_allow_html=True)
     
     # Mostrar pontuação
-    st.markdown(f'<div class="score-card"><h2>Pontuação Final: {st.session_state.score}/{len(image_data)}</h2></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="score-card"><h2>Pontuação Final: {st.session_state.score}/{len(st.session_state.image_data)}</h2></div>', unsafe_allow_html=True)
     
     # Adicionar ao leaderboard apenas uma vez
     if not st.session_state.score_added_to_leaderboard:
@@ -571,72 +598,78 @@ elif st.session_state.game_state == "end":
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Playground de geração de imagens
-    ssh_config = get_ssh_config()
-    
-    st.markdown('<div class="playground">', unsafe_allow_html=True)
-    st.markdown('<h2 class="playground-title">🎨 Playground de Geração de Imagens</h2>', unsafe_allow_html=True)
-    
-    if not ssh_config:
-        st.markdown("""
-        <div class="ssh-warning">
-            <h4>⚠️ Configuração SSH Necessária</h4>
-            <p>Para usar o playground, configure as variáveis de ambiente no arquivo .env</p>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
+
+    # Playground de geração de imagens - TUDO DENTRO DA CAIXA COM GRADIENTE
+    with st.container():
+
+        # Título e descrição dentro do playground
+        st.markdown('<h2 class="playground-title">🎨 Playground de Geração de Imagens</h2>', unsafe_allow_html=True)
         st.markdown('<p class="playground-text">Agora é sua vez! Gere uma imagem usando IA com a poderosa RTX 4090</p>', unsafe_allow_html=True)
-        
-        with st.form("generation_form"):
-            prompt = st.text_input("Digite o prompt para gerar uma imagem:", 
-                                  placeholder="Ex: um gato astronauta no espaço, estilo digital art",
-                                  value="Gato de botas")
-            generate = st.form_submit_button("🚀 Gerar Imagem")
-            
-            if generate:
-                if prompt.strip():
-                    st.session_state.generating = True
-                    st.session_state.last_prompt = prompt
-                    with st.spinner("⏳ Conectando ao servidor remoto e gerando imagem... (isso pode levar 2-5 minutos)"):
-                        generated_image, error_message = generate_image_via_ssh(prompt)
-                        if generated_image:
-                            st.session_state.generated_image = generated_image
-                            st.success("✅ Imagem gerada com sucesso!")
-                        else:
-                            st.error(f"❌ {error_message}")
-                    st.session_state.generating = False
+
+        ssh_config = get_ssh_config()
+
+        if not ssh_config:
+            st.markdown("""
+            <div class="playground-content">
+                <div class="ssh-warning">
+                    <h4>⚠️ Configuração SSH Necessária</h4>
+                    <p>Para usar o playground, configure as variáveis de ambiente no arquivo .env</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Formulário dentro do playground
+            with st.form("generation_form"):
+                prompt = st.text_input("Digite o prompt para gerar uma imagem:", 
+                                      placeholder="Ex: um gato astronauta no espaço, estilo digital art")
+                generate = st.form_submit_button("🚀 Gerar Imagem")
+
+                if generate:
+                    if prompt.strip():
+                        st.session_state.generating = True
+                        st.session_state.last_prompt = prompt
+                        with st.spinner("⏳ Conectando ao servidor remoto e gerando imagem... (isso pode levar 2-5 minutos)"):
+                            generated_image, error_message = generate_image_via_ssh(prompt)
+                            if generated_image:
+                                st.session_state.generated_image = generated_image
+                                st.success("✅ Imagem gerada com sucesso!")
+                            else:
+                                st.error(f"❌ {error_message}")
+                        st.session_state.generating = False
+                        st.rerun()
+                    else:
+                        st.warning("Por favor, digite um prompt para gerar a imagem.")
+
+        # Mostrar imagem gerada (também dentro da caixa com gradiente)
+        if st.session_state.generated_image:
+            st.markdown("### 🖼️ Imagem gerada:")
+            st.image(st.session_state.generated_image, use_container_width=True, caption=f"Prompt: {st.session_state.last_prompt}")
+
+            # Botões de ação para a imagem
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Botão para baixar a imagem
+                buf = io.BytesIO()
+                st.session_state.generated_image.save(buf, format="PNG")
+                byte_im = buf.getvalue()
+
+                st.download_button(
+                    label="💾 Baixar Imagem",
+                    data=byte_im,
+                    file_name="imagem_gerada_ia.png",
+                    mime="image/png",
+                    use_container_width=True
+                )
+
+            with col2:
+                # Botão para gerar outra imagem
+                if st.button("🔄 Gerar Outra", use_container_width=True):
+                    st.session_state.generated_image = None
                     st.rerun()
-                else:
-                    st.warning("Por favor, digite um prompt para gerar a imagem.")
+
     
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Mostrar imagem gerada
-    if st.session_state.generated_image:
-        st.markdown("---")
-        st.markdown(f"### 🖼️ Imagem gerada para: \"{st.session_state.last_prompt}\"")
-        st.image(st.session_state.generated_image, use_container_width=True, caption="Imagem gerada por IA - Stable Diffusion XL")
-        
-        # Botão para salvar a imagem
-        buf = io.BytesIO()
-        st.session_state.generated_image.save(buf, format="PNG")
-        byte_im = buf.getvalue()
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                label="💾 Baixar Imagem",
-                data=byte_im,
-                file_name="imagem_gerada_ia.png",
-                mime="image/png",
-                use_container_width=True
-            )
-        with col2:
-            if st.button("🔄 Gerar Outra", use_container_width=True):
-                st.session_state.generated_image = None
-                st.rerun()
-    
-    # Botões de ação
+    # Botões de ação principais (fora da caixa de playground)
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
