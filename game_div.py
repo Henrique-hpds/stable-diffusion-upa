@@ -20,7 +20,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-    # Estilos CSS personalizados
+# Estilos CSS personalizados
 st.markdown("""
     <style>
     .main {
@@ -194,22 +194,68 @@ st.markdown("""
     .image-grid-item.selected {
         border: 4px solid #4CAF50;
     }
+    
+    /* Estilos para a área administrativa */
+    .admin-panel {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        border-left: 5px solid #dc3545;
+    }
+    .admin-header {
+        color: #dc3545;
+        border-bottom: 2px solid #dc3545;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+    }
+    .admin-button {
+        background-color: #dc3545 !important;
+    }
+    .admin-button:hover {
+        background-color: #c82333 !important;
+    }
+    .delete-button {
+        background-color: #ff6b6b !important;
+        margin-left: 10px;
+    }
+    .delete-button:hover {
+        background-color: #ee5a5a !important;
+    }
+    .reset-button {
+        background-color: #dc3545 !important;
+    }
+    .reset-button:hover {
+        background-color: #c82333 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # Função para gerar dados do jogo (apenas uma vez)
 def generate_image_data():
     """Gera os dados das imagens para todas as rodadas"""
+    # Cada rodada está em data/rodadaX com real.png e ia01.png, ia02.png, ia03.png
+    import time
+    random.seed(time.time())
+    base_dir = "data"
+    import re
+    rodadas = [d for d in os.listdir(base_dir) if d.startswith("rodada") and os.path.isdir(os.path.join(base_dir, d))]
+    # Ordena numericamente pelo número após 'rodada'
+    rodadas.sort(key=lambda x: int(re.search(r'\d+', x).group()) if re.search(r'\d+', x) else 0)
     image_data = []
-    for i in range(15):
-        real_index = random.randint(0, 3)  # Escolhe qual imagem é a real (0-3)
+    for rodada in rodadas:
+        rodada_path = os.path.join(base_dir, rodada)
+        real_img = os.path.join(rodada_path, "real.png")
+        ia_imgs = [os.path.join(rodada_path, f"ia0{i}.png") for i in range(1, 4)]
+        # Checa se todos os arquivos existem
+        if not (os.path.exists(real_img) and all(os.path.exists(p) for p in ia_imgs)):
+            continue
+        imagens = ia_imgs + [real_img]
+        random.shuffle(imagens)
+        real_index = imagens.index(real_img)
         image_data.append({
-            "images": [
-                "https://placehold.co/400x300/4CAF50/white?text=Real+" + str(i+1) if j == real_index else 
-                "https://placehold.co/400x300/FF6B6B/white?text=IA+" + str(i+1) + "-" + str(j+1)
-                for j in range(4)
-            ],
-            "answer": real_index  # Índice da imagem real (0-3)
+            "images": imagens,
+            "answer": real_index
         })
     return image_data
 
@@ -448,7 +494,7 @@ def add_to_leaderboard(name, score):
 
 def reset_game():
     for key in list(st.session_state.keys()):
-        if key not in ['game_state', 'player_name', 'ssh_configured', 'score_added_to_leaderboard']:
+        if key not in ['game_state', 'player_name', 'ssh_configured', 'score_added_to_leaderboard', 'show_admin']:
             del st.session_state[key]
     st.session_state.game_state = "start"
     # Limpar a imagem gerada quando um novo jogo começa
@@ -459,6 +505,17 @@ def reset_game():
     # Limpar os dados das imagens para gerar novos
     if 'image_data' in st.session_state:
         del st.session_state.image_data
+
+# Funções administrativas
+def delete_player_from_leaderboard(player_name):
+    leaderboard = load_leaderboard()
+    leaderboard = [player for player in leaderboard if player["name"] != player_name]
+    save_leaderboard(leaderboard)
+    return leaderboard
+
+def reset_leaderboard():
+    save_leaderboard([])
+    return []
 
 # Inicialização do estado da sessão
 if 'game_state' not in st.session_state:
@@ -485,9 +542,68 @@ if 'ssh_tested' not in st.session_state:
     st.session_state.ssh_tested = False
 if 'score_added_to_leaderboard' not in st.session_state:
     st.session_state.score_added_to_leaderboard = False
+if 'show_admin' not in st.session_state:
+    st.session_state.show_admin = False
+if 'admin_authenticated' not in st.session_state:
+    st.session_state.admin_authenticated = False
 # Gerar dados das imagens apenas uma vez por sessão
 if 'image_data' not in st.session_state:
     st.session_state.image_data = generate_image_data()
+
+# Sidebar para acesso administrativo
+with st.sidebar:
+    st.title("⚙️ Configurações")
+    
+    # Botão para abrir/fechar painel administrativo
+    if st.button("🔐 Painel Administrativo", use_container_width=True):
+        st.session_state.show_admin = not st.session_state.show_admin
+        # Se estiver fechando o painel, também desautentica
+        if not st.session_state.show_admin:
+            st.session_state.admin_authenticated = False
+    
+    # Se o painel administrativo estiver visível
+    if st.session_state.show_admin:
+        st.markdown("---")
+        st.markdown("### 🔐 Acesso Administrativo")
+        
+        # Se não estiver autenticado, mostrar formulário de login
+        if not st.session_state.admin_authenticated:
+            admin_password = st.text_input("Senha administrativa:", type="password")
+            if st.button("Entrar", use_container_width=True):
+                # Verificar senha (substitua por uma verificação mais segura em produção)
+                if admin_password == os.environ.get("ADMIN_PASSWORD", "admin123"):
+                    st.session_state.admin_authenticated = True
+                    st.success("Autenticado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Senha incorreta!")
+        
+        # Se estiver autenticado, mostrar opções administrativas
+        else:
+            st.success("✅ Autenticado")
+            
+            leaderboard = load_leaderboard()
+            
+            if leaderboard:
+                st.markdown("### 🗑️ Remover Jogador")
+                player_to_delete = st.selectbox(
+                    "Selecione o jogador para remover:",
+                    options=[player["name"] for player in leaderboard],
+                    key="player_to_delete"
+                )
+                
+                if st.button("❌ Remover Jogador", use_container_width=True):
+                    leaderboard = delete_player_from_leaderboard(player_to_delete)
+                    st.success(f"Jogador {player_to_delete} removido com sucesso!")
+                    st.rerun()
+                
+                st.markdown("### 🗑️ Limpar Leaderboard")
+                if st.button("⚠️ Limpar Todo o Leaderboard", use_container_width=True, type="secondary"):
+                    leaderboard = reset_leaderboard()
+                    st.success("Leaderboard limpo com sucesso!")
+                    st.rerun()
+            else:
+                st.info("Nenhum dado no leaderboard para gerenciar.")
 
 # Tela inicial
 if st.session_state.game_state == "start":
@@ -497,10 +613,18 @@ if st.session_state.game_state == "start":
     with st.form("player_form"):
         player_name = st.text_input("Digite seu nome:", max_chars=20, value=st.session_state.player_name)
         submitted = st.form_submit_button("Iniciar Jogo")
-        
+
         if submitted:
             if player_name.strip():
-                st.session_state.player_name = player_name
+                # Garante nome único no leaderboard
+                leaderboard = load_leaderboard()
+                existing_names = {entry["name"] for entry in leaderboard}
+                final_name = player_name
+                suffix = 2
+                while final_name in existing_names:
+                    final_name = f"{player_name} ({suffix})"
+                    suffix += 1
+                st.session_state.player_name = final_name
                 st.session_state.game_state = "playing"
                 st.session_state.current_round = 0
                 st.session_state.score = 0
@@ -532,7 +656,24 @@ elif st.session_state.game_state == "playing":
         
         for i in range(4):
             with cols[i % 2]:
-                st.image(round_data["images"][i], use_container_width=True, caption=f"Imagem {image_labels[i]}")
+                img_path = round_data["images"][i]
+                # Se for a imagem real, ajusta para 1024x1024 (qualquer tamanho quadrado ou crop central se não for)
+                if os.path.basename(img_path) == "real.png":
+                    img = Image.open(img_path)
+                    w, h = img.size
+                    crop_size = 1024
+                    if w == h:
+                        img = img.resize((crop_size, crop_size), Image.LANCZOS)
+                    else:
+                        # Se não for quadrada, crop central para quadrado e redimensiona
+                        min_side = min(w, h)
+                        left = (w - min_side) // 2
+                        top = (h - min_side) // 2
+                        img = img.crop((left, top, left + min_side, top + min_side))
+                        img = img.resize((crop_size, crop_size), Image.LANCZOS)
+                    st.image(img, use_container_width=True, caption=f"Imagem {image_labels[i]}")
+                else:
+                    st.image(img_path, use_container_width=True, caption=f"Imagem {image_labels[i]}")
                 if st.session_state.selected_option is None:
                     if st.button(f"Selecionar {image_labels[i]}", key=f"btn_{i}"):
                         st.session_state.selected_option = i
@@ -628,7 +769,7 @@ elif st.session_state.game_state == "end":
                     if prompt.strip():
                         st.session_state.generating = True
                         st.session_state.last_prompt = prompt
-                        with st.spinner("⏳ Conectando ao servidor remoto e gerando imagem... (isso pode levar 2-5 minutos)"):
+                        with st.spinner("⏳ Gerando imagem..."):
                             generated_image, error_message = generate_image_via_ssh(prompt)
                             if generated_image:
                                 st.session_state.generated_image = generated_image
@@ -685,7 +826,7 @@ elif st.session_state.game_state == "end":
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666;'>"
-    "🎮 Jogo Real vs IA | 🤖 Geração por Stable Diffusion XL | 🖥️ RTX 4090 Remota"
+    "🎮 Jogo Real vs IA | 🖥️ Geração por Stable Diffusion XL"
     "</div>",
     unsafe_allow_html=True
 )
